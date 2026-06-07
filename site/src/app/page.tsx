@@ -6,7 +6,7 @@ export default function Home() {
       <section className="hero-ribbon grid gap-8 rounded-[1.5rem] p-6">
         <div>
           <h1 className="section-title">Shylow SKI</h1>
-          <p className="mt-2 text-lg">Private room in bed and breakfast in Albion, Jamaica</p>
+          <p className="mt-2 text-lg">Private bed and breakfast in Albion, Jamaica</p>
 
           <div className="mt-4 space-y-1">
             <p className="font-semibold">Lot 946</p>
@@ -15,7 +15,7 @@ export default function Home() {
           </div>
 
           <p className="mt-4">8 guests · 4 bedrooms · 4 beds · 2 shared baths</p>
-          <p className="mt-2">★ No reviews yet</p>
+          
 
           <div className="mt-6">
             <Link className="button-primary" href="/booking">
