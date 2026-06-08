@@ -34,7 +34,7 @@ export function SiteNav() {
 
         <div className="hidden items-center gap-3 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--muted)] lg:flex">
           <span className="rounded-full border border-white/70 bg-white/72 px-3 py-2 text-[0.72rem] tracking-[0.24em] text-[var(--accent-ink)]">
-            Albion, Jamaica
+            Albion, St Thomas, Jamaica
           </span>
           <span>Request-based booking</span>
         </div>

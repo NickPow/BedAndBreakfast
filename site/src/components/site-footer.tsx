@@ -10,7 +10,7 @@ export function SiteFooter() {
             A polished coastal stay with direct-request booking.
           </p>
           <div className="flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
-            <span className="rounded-full border border-white/70 bg-white/60 px-3 py-2">Albion, Jamaica</span>
+            <span className="rounded-full border border-white/70 bg-white/60 px-3 py-2">Albion, St Thomas, Jamaica</span>
             <span className="rounded-full border border-white/70 bg-white/60 px-3 py-2">Secure booking flow</span>
             <span className="rounded-full border border-white/70 bg-white/60 px-3 py-2">Direct host approval</span>
           </div>

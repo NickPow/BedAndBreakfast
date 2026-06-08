@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     template: "%s | Shylow SKI Bed & Breakfast",
   },
   description:
-    "A refined bed and breakfast experience in Albion, Jamaica with booking requests sent directly to the host.",
+    "A refined bed and breakfast experience in Albion, St Thomas, Jamaica with booking requests sent directly to the host.",
 };
 
 export default function RootLayout({
