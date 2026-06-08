@@ -104,11 +104,27 @@ export async function submitBookingRequest(
         "Booking request sent. The host will review it by email before payment details are shared.",
     };
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to send the booking request.";
+    const errorMessage = error instanceof Error ? error.message : "Unable to send the booking request.";
+    const isConfigIssue = /configure smtp_host|booking_from_email|smtp_pass|smtp_user|smtp_port/i.test(
+      errorMessage,
+    );
+    const incidentId = crypto.randomUUID().slice(0, 8);
+
+    console.error(`[booking:${incidentId}] Email send failed`, {
+      message: errorMessage,
+      error,
+    });
+
+    if (isConfigIssue) {
+      return {
+        status: "error",
+        message: "Bookings are temporarily unavailable. Please contact the host directly.",
+      };
+    }
 
     return {
       status: "error",
-      message,
+      message: `Unable to send your request right now. Please try again in a moment. Ref: ${incidentId}`,
     };
   }
 }

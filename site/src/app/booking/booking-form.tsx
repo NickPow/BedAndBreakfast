@@ -1,16 +1,25 @@
 "use client";
 
+import { useEffect } from "react";
 import { useActionState } from "react";
+import { useRouter } from "next/navigation";
 import { bookingInitialState, submitBookingRequest } from "./actions";
 
 const guestOptions = [1, 2, 3, 4, 5, 6, 7, 8];
 const roomOptions = [1, 2, 3, 4];
 
 export function BookingForm() {
+  const router = useRouter();
   const [state, formAction, pending] = useActionState(
     submitBookingRequest,
     bookingInitialState,
   );
+
+  useEffect(() => {
+    if (state.status === "success") {
+      router.push("/booking/success");
+    }
+  }, [router, state.status]);
 
   return (
     <form action={formAction} className="quote-panel rounded-[2rem] p-6 md:p-8">
@@ -78,7 +87,10 @@ export function BookingForm() {
       </label>
 
       <div className="mt-6 flex flex-col gap-4 border-t border-white/60 pt-5 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-stone-600" aria-live="polite">
+        <p
+          className={`text-sm ${state.status === "error" ? "font-semibold text-rose-700" : "text-stone-600"}`}
+          aria-live="polite"
+        >
           {state.message || ""}
         </p>
         <button type="submit" className="button-primary disabled:cursor-not-allowed disabled:opacity-70" disabled={pending}>
