@@ -3,10 +3,14 @@
 import { useEffect } from "react";
 import { useActionState } from "react";
 import { useRouter } from "next/navigation";
-import { bookingInitialState, submitBookingRequest } from "./actions";
+import { submitBookingRequest } from "./actions";
 
 const guestOptions = [1, 2, 3, 4, 5, 6, 7, 8];
 const roomOptions = [1, 2, 3, 4];
+const bookingInitialState = {
+  status: "idle",
+  message: "",
+} as const;
 
 export function BookingForm() {
   const router = useRouter();

@@ -128,5 +128,3 @@ export async function submitBookingRequest(
     };
   }
 }
-
-export const bookingInitialState = initialState;
