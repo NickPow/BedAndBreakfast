@@ -1,15 +1,13 @@
-const videoItems = [
+type VideoItem = {
+  youtubeId: string;
+};
+
+const videoItems: VideoItem[] = [
   {
-    title: "Property walkthrough",
-    body: "Add a YouTube or Vimeo link later to show guests the space before they book.",
+    youtubeId: "WMg7fTdfi5s",
   },
   {
-    title: "Breakfast and hospitality",
-    body: "Use this slot for short clips that introduce the host and the morning experience.",
-  },
-  {
-    title: "Albion and the south coast",
-    body: "Reserve this slot for local travel moments, scenic drives, or nearby attractions.",
+    youtubeId: "eIVqoIF9q58",
   },
 ];
 
@@ -17,10 +15,28 @@ export default function VideosPage() {
   return (
     <div className="site-shell section-pad">
       <section className="content-card rounded-[1.6rem] p-6 md:p-8">
-        <h1 className="section-title">Videos coming soon</h1>
-        <p className="mt-3 text-sm leading-7 text-stone-700">
-          
-        </p>
+        <h1 className="section-title">Videos</h1>
+        
+
+        <div className="mt-6 grid gap-6 lg:grid-cols-2">
+          {videoItems.map((video) => (
+            <article key={video.youtubeId} className="media-card rounded-[1.3rem] p-4">
+              <div className="relative overflow-hidden rounded-[1rem] border border-stone-200 bg-stone-950">
+                <div className="relative aspect-video w-full">
+                  <iframe
+                    className="absolute inset-0 h-full w-full"
+                    src={`https://www.youtube.com/embed/${video.youtubeId}`}
+                    title="Shylow SKI video"
+                    loading="lazy"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    referrerPolicy="strict-origin-when-cross-origin"
+                    allowFullScreen
+                  />
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
       </section>
     </div>
   );

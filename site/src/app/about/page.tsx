@@ -48,7 +48,7 @@ export default function AboutPage() {
       </section>
 
       <section className="quote-panel rounded-[1.4rem] p-6 md:p-7 lg:p-8">
-        <h2 className="text-3xl font-semibold tracking-tight text-stone-950 md:text-4xl">Where you'll be</h2>
+        <h2 className="text-3xl font-semibold tracking-tight text-stone-950 md:text-4xl">Where you&apos;ll be</h2>
         <p className="mt-3 text-sm font-semibold tracking-wide text-stone-900 md:text-base">Albion, St Thomas, Jamaica</p>
 
         <div className="mt-5 grid gap-4 md:grid-cols-3">

@@ -1,17 +1,24 @@
 import Image from "next/image";
+import { readdirSync } from "node:fs";
+import { join } from "node:path";
 
-const photos = [
-  "/images/20180228_063624_1.jpg",
-  "/images/20180301_014223.jpg",
-  "/images/received_133216870838480.jpeg",
-  "/images/received_133216987505135.jpeg",
-  "/images/received_133217887505045.jpeg",
-  "/images/received_133217894171711.jpeg",
-  "/images/received_133218344171666.jpeg",
-  "/images/received_1809764739044971.jpeg",
-];
+const SUPPORTED_IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif"]);
+
+function getGalleryPhotos() {
+  const imagesDirectory = join(process.cwd(), "public", "images");
+
+  return readdirSync(imagesDirectory)
+    .filter((fileName) => {
+      const extension = fileName.slice(fileName.lastIndexOf(".")).toLowerCase();
+      return SUPPORTED_IMAGE_EXTENSIONS.has(extension);
+    })
+    .sort((a, b) => a.localeCompare(b))
+    .map((fileName) => `/images/${fileName}`);
+}
 
 export default function PicturesPage() {
+  const photos = getGalleryPhotos();
+
   return (
     <div className="site-shell section-pad">
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">

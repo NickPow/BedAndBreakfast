@@ -2,15 +2,12 @@
 
 import { z } from "zod";
 import { sendBookingRequestEmail } from "@/lib/booking";
+import { hasActiveDateBlockOverlap } from "@/lib/date-blocks";
+import { getSupabaseServiceClient } from "@/lib/supabase/service";
 
 export type BookingActionState = {
   status: "idle" | "success" | "error";
   message: string;
-};
-
-const initialState: BookingActionState = {
-  status: "idle",
-  message: "",
 };
 
 const bookingSchema = z
@@ -87,21 +84,85 @@ export async function submitBookingRequest(
   }
 
   try {
-    await sendBookingRequestEmail({
-      fullName: parsed.data.fullName,
-      email: parsed.data.email,
-      phone: parsed.data.phone,
-      guests: parsed.data.guests,
-      rooms: parsed.data.rooms,
-      arrivalDate: parsed.data.arrivalDate,
-      departureDate: parsed.data.departureDate,
-      message: parsed.data.message,
-    });
+    const overlaps = await hasActiveDateBlockOverlap(
+      parsed.data.arrivalDate,
+      parsed.data.departureDate,
+    );
+
+    if (overlaps) {
+      return {
+        status: "error",
+        message:
+          "Those dates are no longer available, including the listed departure day. Please select different dates.",
+      };
+    }
+
+    const supabase = getSupabaseServiceClient();
+
+    const { data: createdBooking, error: bookingInsertError } = await supabase
+      .from("booking_requests")
+      .insert({
+        full_name: parsed.data.fullName,
+        email: parsed.data.email,
+        phone: parsed.data.phone,
+        guests: parsed.data.guests,
+        rooms: parsed.data.rooms,
+        arrival_date: parsed.data.arrivalDate,
+        departure_date: parsed.data.departureDate,
+        message: parsed.data.message,
+        status: "pending",
+        decline_email_enabled: true,
+      } as never)
+      .select("id")
+      .single();
+
+    const bookingRow = createdBooking as { id: string } | null;
+
+    if (bookingInsertError || !bookingRow) {
+      throw new Error(
+        bookingInsertError?.message ?? "Unable to store booking request.",
+      );
+    }
+
+    const { error: holdInsertError } = await supabase.from("date_blocks").insert(
+      {
+        booking_request_id: bookingRow.id,
+        source_type: "pending_hold",
+        start_date: parsed.data.arrivalDate,
+        end_date: parsed.data.departureDate,
+        is_active: true,
+        note: "Pending hold from booking request",
+      } as never,
+    );
+
+    if (holdInsertError) {
+      throw new Error(
+        `Unable to reserve pending hold: ${holdInsertError.message}`,
+      );
+    }
+
+    try {
+      await sendBookingRequestEmail({
+        fullName: parsed.data.fullName,
+        email: parsed.data.email,
+        phone: parsed.data.phone,
+        guests: parsed.data.guests,
+        rooms: parsed.data.rooms,
+        arrivalDate: parsed.data.arrivalDate,
+        departureDate: parsed.data.departureDate,
+        message: parsed.data.message,
+      });
+    } catch (emailError) {
+      console.error("Host booking notification email failed", {
+        bookingId: bookingRow.id,
+        emailError,
+      });
+    }
 
     return {
       status: "success",
       message:
-        "Booking request sent. The host will review it by email before payment details are shared.",
+        "Booking request sent. It is now pending host approval, and your dates are temporarily held.",
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unable to send the booking request.";

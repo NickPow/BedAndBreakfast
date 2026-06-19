@@ -1,0 +1,29 @@
+export type SupabaseDatabase = {
+  public: {
+    Tables: {
+      [key: string]: {
+        Row: Record<string, unknown>;
+        Insert: Record<string, unknown>;
+        Update: Record<string, unknown>;
+        Relationships: [];
+      };
+    };
+    Views: {
+      [key: string]: {
+        Row: Record<string, unknown>;
+      };
+    };
+    Functions: {
+      [key: string]: {
+        Args: Record<string, unknown>;
+        Returns: unknown;
+      };
+    };
+    Enums: {
+      [key: string]: string;
+    };
+    CompositeTypes: {
+      [key: string]: unknown;
+    };
+  };
+};
