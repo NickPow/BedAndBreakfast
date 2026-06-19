@@ -16,6 +16,10 @@ function getErrorMessage(error?: string) {
   }
 }
 
+function isAdminRole(role: string | null | undefined) {
+  return role?.trim().toLowerCase() === "admin";
+}
+
 export default async function AdminLoginPage({
   searchParams,
 }: {
@@ -38,7 +42,7 @@ export default async function AdminLoginPage({
 
     const roleRow = roleResult.data as { role: string } | null;
 
-    if (roleRow?.role === "admin") {
+    if (isAdminRole(roleRow?.role)) {
       redirect("/admin");
     }
   }

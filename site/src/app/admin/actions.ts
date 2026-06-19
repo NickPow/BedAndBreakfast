@@ -28,6 +28,10 @@ type ReviewModerationRow = {
   status: "pending" | "approved" | "rejected";
 };
 
+function isAdminRole(role: string | null | undefined) {
+  return role?.trim().toLowerCase() === "admin";
+}
+
 const manualBlockSchema = z
   .object({
     startDate: z.string().trim().min(1),
@@ -90,7 +94,7 @@ async function requireAdminUserId() {
   const roleRow = roleResult.data as { role: string } | null;
   const roleError = roleResult.error;
 
-  if (roleError || !roleRow || roleRow.role !== "admin") {
+  if (roleError || !roleRow || !isAdminRole(roleRow.role)) {
     redirect("/admin/login?error=unauthorized");
   }
 

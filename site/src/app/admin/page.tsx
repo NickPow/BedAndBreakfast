@@ -43,6 +43,10 @@ type PendingReviewRow = {
   created_at: string;
 };
 
+function isAdminRole(role: string | null | undefined) {
+  return role?.trim().toLowerCase() === "admin";
+}
+
 function friendlyNotice(notice?: string) {
   switch (notice) {
     case "approved":
@@ -113,7 +117,7 @@ export default async function AdminDashboardPage({
 
   const roleRow = roleResult.data as { role: string } | null;
 
-  if (!roleRow || roleRow.role !== "admin") {
+  if (!roleRow || !isAdminRole(roleRow.role)) {
     redirect("/admin/login?error=unauthorized");
   }
 
