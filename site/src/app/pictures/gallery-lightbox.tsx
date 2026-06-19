@@ -72,10 +72,15 @@ export function GalleryLightbox({ photos }: GalleryLightboxProps) {
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {photos.map((src, index) => (
           <article key={src} className="media-card overflow-hidden">
-            <button
-              type="button"
-              className="relative block aspect-[4/3] w-full transition hover:opacity-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-ink)]"
-              onClick={() => setOpenIndex(index)}
+            <a
+              href={src}
+              target="_blank"
+              rel="noreferrer"
+              className="relative block aspect-[4/3] w-full cursor-zoom-in transition hover:opacity-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-ink)]"
+              onClick={(event) => {
+                event.preventDefault();
+                setOpenIndex(index);
+              }}
               aria-label={`Open photo ${index + 1} in full view`}
             >
               <Image
@@ -86,7 +91,7 @@ export function GalleryLightbox({ photos }: GalleryLightboxProps) {
                 sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
                 priority={index < 2}
               />
-            </button>
+            </a>
           </article>
         ))}
       </section>
