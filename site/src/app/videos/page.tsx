@@ -25,17 +25,25 @@ export default function VideosPage() {
           {videoItems.map((video) => (
             <article key={video.youtubeId} className="media-card rounded-[1.3rem] p-4">
               <div className="relative overflow-hidden rounded-[1rem] border border-stone-200 bg-stone-950">
-                <div className="relative aspect-video w-full">
-                  <iframe
-                    className="absolute inset-0 h-full w-full"
-                    src={`https://www.youtube-nocookie.com/embed/${video.youtubeId}?rel=0`}
-                    title="Shylow SKI video"
+                <a
+                  href={video.youtubeUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="relative block aspect-video w-full"
+                  aria-label="Open video on YouTube"
+                >
+                  <img
+                    className="h-full w-full object-cover"
+                    src={`https://i.ytimg.com/vi/${video.youtubeId}/hqdefault.jpg`}
+                    alt="Video thumbnail"
                     loading="lazy"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                    referrerPolicy="strict-origin-when-cross-origin"
-                    allowFullScreen
                   />
-                </div>
+                  <span className="absolute inset-0 flex items-center justify-center bg-stone-950/25 text-white">
+                    <span className="rounded-full border border-white/80 bg-black/40 px-4 py-2 text-sm font-semibold">
+                      Play on YouTube
+                    </span>
+                  </span>
+                </a>
               </div>
               <a
                 href={video.youtubeUrl}
