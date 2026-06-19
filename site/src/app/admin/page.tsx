@@ -113,9 +113,9 @@ export default async function AdminDashboardPage({
     .from("admin_roles")
     .select("role")
     .eq("user_id", user.id)
-    .maybeSingle();
+    .limit(1);
 
-  const roleRow = roleResult.data as { role: string } | null;
+  const roleRow = ((roleResult.data as { role: string }[] | null) ?? [])[0] ?? null;
 
   if (!roleRow || !isAdminRole(roleRow.role)) {
     redirect("/admin/login?error=unauthorized");

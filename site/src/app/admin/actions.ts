@@ -89,9 +89,9 @@ async function requireAdminUserId() {
     .from("admin_roles")
     .select("role")
     .eq("user_id", user.id)
-    .maybeSingle();
+    .limit(1);
 
-  const roleRow = roleResult.data as { role: string } | null;
+  const roleRow = ((roleResult.data as { role: string }[] | null) ?? [])[0] ?? null;
   const roleError = roleResult.error;
 
   if (roleError || !roleRow || !isAdminRole(roleRow.role)) {
