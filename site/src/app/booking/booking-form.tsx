@@ -95,9 +95,7 @@ export function BookingForm() {
           />
         </label>
 
-        <p className="mt-3 text-xs font-medium uppercase tracking-[0.12em] text-stone-600">
-          Departure dates are also blocked. Same-day checkout and check-in is not available.
-        </p>
+        
 
         <div className="mt-6 flex flex-col gap-4 border-t border-white/60 pt-5 sm:flex-row sm:items-center sm:justify-between">
           <p

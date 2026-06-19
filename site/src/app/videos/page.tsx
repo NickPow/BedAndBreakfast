@@ -1,13 +1,16 @@
 type VideoItem = {
   youtubeId: string;
+  youtubeUrl: string;
 };
 
 const videoItems: VideoItem[] = [
   {
     youtubeId: "WMg7fTdfi5s",
+    youtubeUrl: "https://youtu.be/WMg7fTdfi5s",
   },
   {
     youtubeId: "eIVqoIF9q58",
+    youtubeUrl: "https://youtube.com/shorts/eIVqoIF9q58?feature=share",
   },
 ];
 
@@ -25,7 +28,7 @@ export default function VideosPage() {
                 <div className="relative aspect-video w-full">
                   <iframe
                     className="absolute inset-0 h-full w-full"
-                    src={`https://www.youtube.com/embed/${video.youtubeId}`}
+                    src={`https://www.youtube-nocookie.com/embed/${video.youtubeId}?rel=0`}
                     title="Shylow SKI video"
                     loading="lazy"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -34,6 +37,14 @@ export default function VideosPage() {
                   />
                 </div>
               </div>
+              <a
+                href={video.youtubeUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="button-secondary mt-4 inline-flex"
+              >
+                Open on YouTube
+              </a>
             </article>
           ))}
         </div>
