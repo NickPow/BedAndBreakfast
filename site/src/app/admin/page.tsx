@@ -126,7 +126,13 @@ export default async function AdminDashboardPage({
   const resolvedRole = authRoleRow?.role ?? serviceRoleRow?.role ?? null;
 
   if (!isAdminRole(resolvedRole)) {
-    redirect("/admin/login?error=unauthorized");
+    const reason = authRoleResult.error
+      ? "auth-role-query-failed"
+      : serviceRoleResult.error
+        ? "service-role-query-failed"
+        : "no-admin-role-for-user";
+    const email = encodeURIComponent(user.email ?? "");
+    redirect(`/admin/login?error=unauthorized&reason=${reason}&email=${email}`);
   }
 
   const { data: pendingBookings } = await serviceClient

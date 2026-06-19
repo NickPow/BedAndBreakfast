@@ -16,6 +16,19 @@ function getErrorMessage(error?: string) {
   }
 }
 
+function getReasonMessage(reason?: string) {
+  switch (reason) {
+    case "auth-role-query-failed":
+      return "Role lookup via session client failed.";
+    case "service-role-query-failed":
+      return "Role lookup via service client failed. Check SUPABASE_SERVICE_ROLE_KEY in deployed env.";
+    case "no-admin-role-for-user":
+      return "No admin role was found for the currently signed-in user ID.";
+    default:
+      return "";
+  }
+}
+
 function isAdminRole(role: string | null | undefined) {
   return role?.trim().toLowerCase() === "admin";
 }
@@ -27,6 +40,8 @@ export default async function AdminLoginPage({
 }) {
   const params = searchParams ? await searchParams : {};
   const error = typeof params.error === "string" ? params.error : undefined;
+  const reason = typeof params.reason === "string" ? params.reason : undefined;
+  const emailFromRedirect = typeof params.email === "string" ? params.email : undefined;
 
   const authClient = await createSupabaseServerClient();
   const {
@@ -54,6 +69,8 @@ export default async function AdminLoginPage({
       redirect("/admin");
     }
   }
+
+  const signedInEmail = user?.email ?? emailFromRedirect;
 
   return (
     <div className="site-shell section-pad">
@@ -88,9 +105,11 @@ export default async function AdminLoginPage({
           </label>
 
           {error && (
-            <p className="text-sm font-semibold text-rose-700" aria-live="polite">
-              {getErrorMessage(error)}
-            </p>
+              <div className="grid gap-1 text-sm font-semibold text-rose-700" aria-live="polite">
+                <p>{getErrorMessage(error)}</p>
+                {reason && <p>{getReasonMessage(reason)}</p>}
+                {signedInEmail && <p>Signed in as: {signedInEmail}</p>}
+              </div>
           )}
 
           <button type="submit" className="button-primary mt-2">
