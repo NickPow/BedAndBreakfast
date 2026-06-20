@@ -1,13 +1,21 @@
 import { redirect } from "next/navigation";
+import Image from "next/image";
 import {
   approveGuestReview,
   approveBookingRequest,
   createManualDateBlock,
+  deleteGalleryImage,
   declineBookingRequest,
+  importLegacyGalleryImages,
+  reorderGalleryImages,
   rejectGuestReview,
   removeManualDateBlock,
   signOutAdmin,
+  uploadGalleryImage,
 } from "@/app/admin/actions";
+import { GalleryManager } from "@/app/admin/gallery-manager";
+import { GALLERY_IMAGES_BUCKET, REVIEW_IMAGES_BUCKET } from "@/lib/media/constants";
+import { getSignedImageUrl } from "@/lib/media/storage";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 
@@ -43,6 +51,22 @@ type PendingReviewRow = {
   created_at: string;
 };
 
+type PendingReviewPhotoRow = {
+  id: string;
+  review_id: string;
+  storage_path: string;
+  caption: string;
+  sort_order: number;
+};
+
+type GalleryImageRow = {
+  id: string;
+  storage_path: string;
+  alt_text: string;
+  caption: string;
+  sort_order: number;
+};
+
 function isAdminRole(role: string | null | undefined) {
   return role?.trim().toLowerCase() === "admin";
 }
@@ -61,12 +85,24 @@ function friendlyNotice(notice?: string) {
       return "Review approved and published.";
     case "review-rejected":
       return "Review rejected.";
+    case "gallery-image-uploaded":
+      return "Gallery image uploaded.";
+    case "gallery-image-deleted":
+      return "Gallery image deleted.";
+    case "gallery-order-saved":
+      return "Gallery order saved.";
+    case "legacy-gallery-imported":
+      return "Existing site images were imported into gallery management.";
+    case "legacy-gallery-already-imported":
+      return "All existing site images are already imported.";
+    case "legacy-gallery-no-files":
+      return "No local images were found to import.";
     default:
       return "";
   }
 }
 
-function friendlyError(error?: string) {
+function friendlyError(error?: string, reason?: string) {
   switch (error) {
     case "dates-unavailable":
       return "Those dates are already blocked, including checkout dates.";
@@ -84,6 +120,20 @@ function friendlyError(error?: string) {
       return "Please provide a short reason when rejecting a review.";
     case "review-not-pending":
       return "That review is no longer pending.";
+    case "invalid-gallery-image":
+      return "Please choose a valid gallery image.";
+    case "invalid-gallery-metadata":
+      return "Gallery caption or alt text is invalid.";
+    case "invalid-gallery-order":
+      return "Gallery order payload was invalid. Refresh and try again.";
+    case "gallery-upload-failed":
+      return reason || "Unable to upload gallery image.";
+    case "gallery-delete-failed":
+      return reason || "Unable to delete gallery image.";
+    case "gallery-reorder-failed":
+      return reason || "Unable to save gallery order.";
+    case "legacy-gallery-import-failed":
+      return reason || "Unable to import local gallery images.";
     default:
       return "";
   }
@@ -97,6 +147,7 @@ export default async function AdminDashboardPage({
   const params = searchParams ? await searchParams : {};
   const notice = typeof params.notice === "string" ? params.notice : undefined;
   const error = typeof params.error === "string" ? params.error : undefined;
+  const reason = typeof params.reason === "string" ? decodeURIComponent(params.reason) : undefined;
 
   const authClient = await createSupabaseServerClient();
   const serviceClient = getSupabaseServiceClient();
@@ -155,9 +206,53 @@ export default async function AdminDashboardPage({
     .eq("status", "pending")
     .order("created_at", { ascending: true });
 
+  const { data: pendingReviewPhotoRows } = await serviceClient
+    .from("review_photos")
+    .select("id,review_id,storage_path,caption,sort_order")
+    .eq("status", "pending")
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  const { data: galleryRows } = await serviceClient
+    .from("gallery_images")
+    .select("id,storage_path,alt_text,caption,sort_order")
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
+
   const bookings = (pendingBookings ?? []) as BookingRow[];
   const blocks = (activeBlocks ?? []) as BlockRow[];
   const reviews = (pendingReviews ?? []) as PendingReviewRow[];
+  const pendingReviewPhotos = (pendingReviewPhotoRows ?? []) as PendingReviewPhotoRow[];
+  const galleryImagesRaw = (galleryRows ?? []) as GalleryImageRow[];
+
+  const galleryImages = await Promise.all(
+    galleryImagesRaw.map(async (image) => ({
+      id: image.id,
+      src: await getSignedImageUrl({
+        bucket: GALLERY_IMAGES_BUCKET,
+        path: image.storage_path,
+      }),
+      altText: image.alt_text,
+      caption: image.caption,
+    })),
+  );
+
+  const reviewPhotoGroups = new Map<string, Array<{ id: string; src: string; caption: string }>>();
+
+  for (const reviewPhoto of pendingReviewPhotos) {
+    const signedUrl = await getSignedImageUrl({
+      bucket: REVIEW_IMAGES_BUCKET,
+      path: reviewPhoto.storage_path,
+    });
+
+    const current = reviewPhotoGroups.get(reviewPhoto.review_id) ?? [];
+    current.push({
+      id: reviewPhoto.id,
+      src: signedUrl,
+      caption: reviewPhoto.caption,
+    });
+    reviewPhotoGroups.set(reviewPhoto.review_id, current);
+  }
 
   return (
     <div className="site-shell section-pad grid gap-6">
@@ -186,10 +281,18 @@ export default async function AdminDashboardPage({
 
         {error && (
           <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800">
-            {friendlyError(error) || "An action could not be completed."}
+            {friendlyError(error, reason) || "An action could not be completed."}
           </p>
         )}
       </section>
+
+      <GalleryManager
+        images={galleryImages}
+        uploadAction={uploadGalleryImage}
+        deleteAction={deleteGalleryImage}
+        reorderAction={reorderGalleryImages}
+        importLegacyAction={importLegacyGalleryImages}
+      />
 
       <section className="content-card rounded-[1.6rem] p-6 md:p-8">
         <h2 className="font-serif text-3xl text-stone-900">Pending requests</h2>
@@ -280,6 +383,25 @@ export default async function AdminDashboardPage({
                 </div>
 
                 <p className="mt-3 text-sm leading-7 text-stone-700">{review.comment}</p>
+
+                {(reviewPhotoGroups.get(review.id)?.length ?? 0) > 0 && (
+                  <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {(reviewPhotoGroups.get(review.id) ?? []).map((photo) => (
+                      <div key={photo.id} className="overflow-hidden rounded-xl border border-stone-200 bg-white">
+                        <div className="relative aspect-[4/3] w-full">
+                          <Image
+                            src={photo.src}
+                            alt="Guest uploaded stay photo"
+                            fill
+                            className="object-cover"
+                            sizes="(max-width: 768px) 100vw, 33vw"
+                          />
+                        </div>
+                        {photo.caption ? <p className="px-2 py-1 text-xs text-stone-700">{photo.caption}</p> : null}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </article>
             ))}
           </div>

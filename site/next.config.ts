@@ -1,18 +1,37 @@
 import type { NextConfig } from "next";
 
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+const supabaseHost = supabaseUrl ? new URL(supabaseUrl).hostname : undefined;
+
+const imageSourceList = ["'self'", "data:"];
+if (supabaseUrl) {
+  imageSourceList.push(supabaseUrl);
+}
+
 const contentSecurityPolicy =
   "default-src 'self'; " +
   "base-uri 'self'; " +
   "form-action 'self'; " +
   "frame-ancestors 'none'; " +
   "frame-src 'self' https://www.google.com https://maps.google.com; " +
-  "img-src 'self' data:; " +
+  `img-src ${imageSourceList.join(" ")}; ` +
   "script-src 'self' 'unsafe-inline'; " +
   "style-src 'self' 'unsafe-inline'; " +
   "connect-src 'self'; " +
   "font-src 'self' data:;";
 
 const nextConfig: NextConfig = {
+  images: supabaseHost
+    ? {
+        remotePatterns: [
+          {
+            protocol: "https",
+            hostname: supabaseHost,
+            pathname: "/**",
+          },
+        ],
+      }
+    : undefined,
   async headers() {
     return [
       {

@@ -4,7 +4,12 @@ import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
 
 type GalleryLightboxProps = {
-  photos: string[];
+  photos: Array<{
+    id: string;
+    src: string;
+    alt: string;
+    caption: string;
+  }>;
 };
 
 export function GalleryLightbox({ photos }: GalleryLightboxProps) {
@@ -70,10 +75,10 @@ export function GalleryLightbox({ photos }: GalleryLightboxProps) {
   return (
     <>
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {photos.map((src, index) => (
-          <article key={src} className="media-card overflow-hidden">
+        {photos.map((photo, index) => (
+          <article key={photo.id} className="media-card overflow-hidden">
             <a
-              href={src}
+              href={photo.src}
               target="_blank"
               rel="noreferrer"
               className="relative block aspect-[4/3] w-full cursor-zoom-in transition hover:opacity-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-ink)]"
@@ -84,8 +89,8 @@ export function GalleryLightbox({ photos }: GalleryLightboxProps) {
               aria-label={`Open photo ${index + 1} in full view`}
             >
               <Image
-                src={src}
-                alt={`Shylow SKI photo ${index + 1}`}
+                src={photo.src}
+                alt={photo.alt || `Shylow SKI photo ${index + 1}`}
                 fill
                 className="object-cover"
                 sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
@@ -119,14 +124,18 @@ export function GalleryLightbox({ photos }: GalleryLightboxProps) {
 
             <div className="relative h-[75vh] w-full overflow-hidden rounded-2xl border border-white/20 bg-stone-900/50">
               <Image
-                src={photos[openIndex]}
-                alt={`Shylow SKI photo ${openIndex + 1}`}
+                src={photos[openIndex].src}
+                alt={photos[openIndex].alt || `Shylow SKI photo ${openIndex + 1}`}
                 fill
                 className="object-contain"
                 sizes="100vw"
                 priority
               />
             </div>
+
+            {photos[openIndex].caption ? (
+              <p className="mt-2 text-center text-sm text-white/85">{photos[openIndex].caption}</p>
+            ) : null}
 
             <button
               type="button"

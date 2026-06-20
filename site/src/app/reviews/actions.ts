@@ -1,6 +1,13 @@
 "use server";
 
 import { z } from "zod";
+import { REVIEW_IMAGES_BUCKET, REVIEW_MAX_PHOTOS } from "@/lib/media/constants";
+import {
+  buildReviewStoragePath,
+  deleteFileFromBucket,
+  uploadFileToBucket,
+  validateImageFile,
+} from "@/lib/media/storage";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 
 export type ReviewActionState = {
@@ -21,6 +28,27 @@ export async function submitReview(
   _previousState: ReviewActionState,
   formData: FormData,
 ): Promise<ReviewActionState> {
+  const photos = formData
+    .getAll("photos")
+    .filter((value): value is File => value instanceof File && value.size > 0);
+
+  if (photos.length > REVIEW_MAX_PHOTOS) {
+    return {
+      status: "error",
+      message: `You can upload up to ${REVIEW_MAX_PHOTOS} photos only.`,
+    };
+  }
+
+  for (const photo of photos) {
+    const validation = validateImageFile(photo);
+    if (!validation.ok) {
+      return {
+        status: "error",
+        message: validation.message,
+      };
+    }
+  }
+
   const parsed = reviewSchema.safeParse({
     fullName: formData.get("fullName"),
     location: formData.get("location"),
@@ -48,20 +76,69 @@ export async function submitReview(
 
   try {
     const supabase = getSupabaseServiceClient();
+    const uploadedPaths: string[] = [];
 
-    const { error } = await supabase.from("guest_reviews").insert(
-      {
-        full_name: parsed.data.fullName,
-        location: parsed.data.location || null,
-        rating: parsed.data.rating,
-        title: parsed.data.title || null,
-        comment: parsed.data.comment,
-        status: "pending",
-      } as never,
-    );
+    const { data: createdReview, error: insertReviewError } = await supabase
+      .from("guest_reviews")
+      .insert(
+        {
+          full_name: parsed.data.fullName,
+          location: parsed.data.location || null,
+          rating: parsed.data.rating,
+          title: parsed.data.title || null,
+          comment: parsed.data.comment,
+          status: "pending",
+        } as never,
+      )
+      .select("id")
+      .single();
 
-    if (error) {
-      throw new Error(error.message);
+    const reviewRow = createdReview as { id: string } | null;
+
+    if (insertReviewError || !reviewRow) {
+      throw new Error(insertReviewError?.message ?? "Unable to create review record.");
+    }
+
+    try {
+      for (const [index, photo] of photos.entries()) {
+        const storagePath = buildReviewStoragePath(reviewRow.id, photo);
+
+        await uploadFileToBucket({
+          bucket: REVIEW_IMAGES_BUCKET,
+          path: storagePath,
+          file: photo,
+        });
+
+        uploadedPaths.push(storagePath);
+
+        const { error: insertPhotoError } = await supabase.from("review_photos").insert(
+          {
+            review_id: reviewRow.id,
+            storage_path: storagePath,
+            sort_order: index,
+            status: "pending",
+          } as never,
+        );
+
+        if (insertPhotoError) {
+          throw new Error(insertPhotoError.message);
+        }
+      }
+    } catch (photoError) {
+      if (uploadedPaths.length > 0) {
+        try {
+          await deleteFileFromBucket({
+            bucket: REVIEW_IMAGES_BUCKET,
+            paths: uploadedPaths,
+          });
+        } catch (cleanupError) {
+          console.error("Review photo cleanup failed", cleanupError);
+        }
+      }
+
+      await supabase.from("review_photos").delete().eq("review_id", reviewRow.id);
+      await supabase.from("guest_reviews").delete().eq("id", reviewRow.id);
+      throw photoError;
     }
 
     return {

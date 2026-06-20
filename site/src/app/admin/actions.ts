@@ -1,5 +1,7 @@
 "use server";
 
+import { readFile, readdir } from "node:fs/promises";
+import { extname, join } from "node:path";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -8,6 +10,13 @@ import {
   sendBookingConfirmedEmailToGuest,
 } from "@/lib/booking";
 import { hasActiveDateBlockOverlap } from "@/lib/date-blocks";
+import { GALLERY_IMAGES_BUCKET, REVIEW_IMAGES_BUCKET } from "@/lib/media/constants";
+import {
+  buildGalleryStoragePath,
+  deleteFileFromBucket,
+  uploadFileToBucket,
+  validateImageFile,
+} from "@/lib/media/storage";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -71,6 +80,38 @@ const reviewModerationSchema = z.object({
   reviewId: z.string().uuid("Invalid review ID."),
   reason: z.string().trim().max(1000).optional().default(""),
 });
+
+const galleryMetadataSchema = z.object({
+  altText: z.string().trim().max(180).optional().default(""),
+  caption: z.string().trim().max(500).optional().default(""),
+});
+
+const galleryDeleteSchema = z.object({
+  galleryImageId: z.string().uuid("Invalid image ID."),
+});
+
+const galleryReorderSchema = z.object({
+  orderedIds: z.array(z.string().uuid()).min(1, "At least one image is required for reorder."),
+});
+
+const LEGACY_IMPORT_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif"]);
+
+function mimeTypeFromExtension(extension: string) {
+  const lower = extension.toLowerCase();
+  if (lower === ".jpg" || lower === ".jpeg") {
+    return "image/jpeg";
+  }
+  if (lower === ".png") {
+    return "image/png";
+  }
+  if (lower === ".webp") {
+    return "image/webp";
+  }
+  if (lower === ".gif") {
+    return "image/gif";
+  }
+  return "application/octet-stream";
+}
 
 async function requireAdminUserId() {
   const authClient = await createSupabaseServerClient();
@@ -148,6 +189,22 @@ async function getReviewById(reviewId: string): Promise<ReviewModerationRow> {
   return data as ReviewModerationRow;
 }
 
+async function getGalleryImageById(galleryImageId: string) {
+  const supabase = getSupabaseServiceClient();
+
+  const { data, error } = await supabase
+    .from("gallery_images")
+    .select("id,storage_path")
+    .eq("id", galleryImageId)
+    .single();
+
+  if (error || !data) {
+    throw new Error("Gallery image not found.");
+  }
+
+  return data as { id: string; storage_path: string };
+}
+
 export async function signInAdmin(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
@@ -170,6 +227,288 @@ export async function signOutAdmin() {
   const supabase = await createSupabaseServerClient();
   await supabase.auth.signOut();
   redirect("/admin/login");
+}
+
+export async function uploadGalleryImage(formData: FormData) {
+  const adminUserId = await requireAdminUserId();
+
+  const file = formData.get("galleryImage");
+
+  if (!(file instanceof File)) {
+    redirect("/admin?error=invalid-gallery-image");
+  }
+
+  const validation = validateImageFile(file);
+
+  if (!validation.ok) {
+    redirect(`/admin?error=gallery-upload-failed&reason=${encodeURIComponent(validation.message)}`);
+  }
+
+  const metadata = galleryMetadataSchema.safeParse({
+    altText: formData.get("altText"),
+    caption: formData.get("caption"),
+  });
+
+  if (!metadata.success) {
+    redirect("/admin?error=invalid-gallery-metadata");
+  }
+
+  const supabase = getSupabaseServiceClient();
+
+  const { data: sortRows, error: sortError } = await supabase
+    .from("gallery_images")
+    .select("sort_order")
+    .order("sort_order", { ascending: false })
+    .limit(1);
+
+  if (sortError) {
+    redirect(`/admin?error=gallery-upload-failed&reason=${encodeURIComponent(sortError.message)}`);
+  }
+
+  const nextSortOrder = ((sortRows as Array<{ sort_order: number }> | null)?.[0]?.sort_order ?? -1) + 1;
+  const storagePath = buildGalleryStoragePath(file);
+
+  try {
+    await uploadFileToBucket({
+      bucket: GALLERY_IMAGES_BUCKET,
+      path: storagePath,
+      file,
+    });
+
+    const { error: insertError } = await supabase.from("gallery_images").insert(
+      {
+        storage_path: storagePath,
+        alt_text: metadata.data.altText,
+        caption: metadata.data.caption,
+        sort_order: nextSortOrder,
+        is_active: true,
+        created_by: adminUserId,
+        updated_by: adminUserId,
+      } as never,
+    );
+
+    if (insertError) {
+      await deleteFileFromBucket({
+        bucket: GALLERY_IMAGES_BUCKET,
+        paths: [storagePath],
+      });
+      throw new Error(insertError.message);
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unable to upload gallery image.";
+    redirect(`/admin?error=gallery-upload-failed&reason=${encodeURIComponent(errorMessage)}`);
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/pictures");
+  redirect("/admin?notice=gallery-image-uploaded");
+}
+
+export async function deleteGalleryImage(formData: FormData) {
+  const adminUserId = await requireAdminUserId();
+  const parsed = galleryDeleteSchema.safeParse({
+    galleryImageId: formData.get("galleryImageId"),
+  });
+
+  if (!parsed.success) {
+    redirect("/admin?error=invalid-gallery-image");
+  }
+
+  const supabase = getSupabaseServiceClient();
+  const galleryImage = await getGalleryImageById(parsed.data.galleryImageId);
+
+  try {
+    await deleteFileFromBucket({
+      bucket: GALLERY_IMAGES_BUCKET,
+      paths: [galleryImage.storage_path],
+    });
+
+    const { error: deleteError } = await supabase
+      .from("gallery_images")
+      .delete()
+      .eq("id", parsed.data.galleryImageId);
+
+    if (deleteError) {
+      throw new Error(deleteError.message);
+    }
+
+    const { data: remainingRows } = await supabase
+      .from("gallery_images")
+      .select("id")
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: true });
+
+    const remainingImages = (remainingRows ?? []) as Array<{ id: string }>;
+
+    await Promise.all(
+      remainingImages.map((image, index) =>
+        supabase
+          .from("gallery_images")
+          .update({
+            sort_order: index,
+            updated_by: adminUserId,
+          } as never)
+          .eq("id", image.id),
+      ),
+    );
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unable to delete gallery image.";
+    redirect(`/admin?error=gallery-delete-failed&reason=${encodeURIComponent(errorMessage)}`);
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/pictures");
+  redirect("/admin?notice=gallery-image-deleted");
+}
+
+export async function reorderGalleryImages(formData: FormData) {
+  const adminUserId = await requireAdminUserId();
+  const rawOrderedIds = String(formData.get("orderedIds") ?? "").trim();
+
+  let parsedIds: string[] = [];
+
+  try {
+    const json = JSON.parse(rawOrderedIds);
+    if (Array.isArray(json)) {
+      parsedIds = json.map((value) => String(value));
+    }
+  } catch {
+    redirect("/admin?error=invalid-gallery-order");
+  }
+
+  const parsed = galleryReorderSchema.safeParse({ orderedIds: parsedIds });
+
+  if (!parsed.success) {
+    redirect("/admin?error=invalid-gallery-order");
+  }
+
+  const supabase = getSupabaseServiceClient();
+  const { data: existingRows, error: existingError } = await supabase
+    .from("gallery_images")
+    .select("id")
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  if (existingError) {
+    redirect(`/admin?error=gallery-reorder-failed&reason=${encodeURIComponent(existingError.message)}`);
+  }
+
+  const existingIds = ((existingRows ?? []) as Array<{ id: string }>).map((row) => row.id).sort();
+  const incomingIds = [...parsed.data.orderedIds].sort();
+
+  if (existingIds.length !== incomingIds.length || existingIds.some((id, index) => id !== incomingIds[index])) {
+    redirect("/admin?error=invalid-gallery-order");
+  }
+
+  try {
+    await Promise.all(
+      parsed.data.orderedIds.map((id, index) =>
+        supabase
+          .from("gallery_images")
+          .update({
+            sort_order: index,
+            updated_by: adminUserId,
+          } as never)
+          .eq("id", id),
+      ),
+    );
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unable to save gallery order.";
+    redirect(`/admin?error=gallery-reorder-failed&reason=${encodeURIComponent(errorMessage)}`);
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/pictures");
+  redirect("/admin?notice=gallery-order-saved");
+}
+
+export async function importLegacyGalleryImages() {
+  const adminUserId = await requireAdminUserId();
+  const supabase = getSupabaseServiceClient();
+
+  let fileNames: string[] = [];
+
+  try {
+    const imagesDirectory = join(process.cwd(), "public", "images");
+    fileNames = (await readdir(imagesDirectory))
+      .filter((fileName) => LEGACY_IMPORT_EXTENSIONS.has(extname(fileName).toLowerCase()))
+      .sort((a, b) => a.localeCompare(b));
+
+    if (fileNames.length === 0) {
+      redirect("/admin?notice=legacy-gallery-no-files");
+    }
+
+    const { data: existingRows, error: existingError } = await supabase
+      .from("gallery_images")
+      .select("storage_path,sort_order")
+      .order("sort_order", { ascending: false })
+      .limit(1);
+
+    if (existingError) {
+      throw new Error(existingError.message);
+    }
+
+    const existingPaths = new Set((existingRows ?? []).map((row) => (row as { storage_path: string }).storage_path));
+    let nextSortOrder = ((existingRows ?? [])[0] as { sort_order: number } | undefined)?.sort_order ?? -1;
+    let importedCount = 0;
+
+    for (const fileName of fileNames) {
+      const legacyPath = `legacy/${fileName}`;
+      if (existingPaths.has(legacyPath)) {
+        continue;
+      }
+
+      const fullPath = join(process.cwd(), "public", "images", fileName);
+      const extension = extname(fileName);
+      const fileBuffer = await readFile(fullPath);
+
+      const { error: uploadError } = await supabase.storage
+        .from(GALLERY_IMAGES_BUCKET)
+        .upload(legacyPath, fileBuffer, {
+          upsert: false,
+          contentType: mimeTypeFromExtension(extension),
+        });
+
+      if (uploadError) {
+        throw new Error(uploadError.message);
+      }
+
+      nextSortOrder += 1;
+      const { error: insertError } = await supabase.from("gallery_images").insert(
+        {
+          storage_path: legacyPath,
+          alt_text: "",
+          caption: "",
+          sort_order: nextSortOrder,
+          is_active: true,
+          created_by: adminUserId,
+          updated_by: adminUserId,
+        } as never,
+      );
+
+      if (insertError) {
+        await deleteFileFromBucket({
+          bucket: GALLERY_IMAGES_BUCKET,
+          paths: [legacyPath],
+        });
+        throw new Error(insertError.message);
+      }
+
+      importedCount += 1;
+    }
+
+    revalidatePath("/admin");
+    revalidatePath("/pictures");
+
+    if (importedCount === 0) {
+      redirect("/admin?notice=legacy-gallery-already-imported");
+    }
+
+    redirect("/admin?notice=legacy-gallery-imported");
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unable to import legacy gallery images.";
+    redirect(`/admin?error=legacy-gallery-import-failed&reason=${encodeURIComponent(errorMessage)}`);
+  }
 }
 
 export async function approveBookingRequest(formData: FormData) {
@@ -449,6 +788,21 @@ export async function approveGuestReview(formData: FormData) {
     throw new Error(`Unable to approve review: ${error.message}`);
   }
 
+  const { error: photoApproveError } = await supabase
+    .from("review_photos")
+    .update({
+      status: "approved",
+      approved_at: new Date().toISOString(),
+      moderated_by: adminUserId,
+      moderation_note: null,
+    } as never)
+    .eq("review_id", review.id)
+    .eq("status", "pending");
+
+  if (photoApproveError) {
+    throw new Error(`Unable to approve review photos: ${photoApproveError.message}`);
+  }
+
   revalidatePath("/admin");
   revalidatePath("/reviews");
   redirect("/admin?notice=review-approved");
@@ -473,6 +827,33 @@ export async function rejectGuestReview(formData: FormData) {
   }
 
   const supabase = getSupabaseServiceClient();
+
+  const { data: reviewPhotoRows, error: reviewPhotoFetchError } = await supabase
+    .from("review_photos")
+    .select("id,storage_path")
+    .eq("review_id", review.id);
+
+  if (reviewPhotoFetchError) {
+    throw new Error(`Unable to load review photos: ${reviewPhotoFetchError.message}`);
+  }
+
+  const reviewPhotos = (reviewPhotoRows ?? []) as Array<{ id: string; storage_path: string }>;
+
+  if (reviewPhotos.length > 0) {
+    await deleteFileFromBucket({
+      bucket: REVIEW_IMAGES_BUCKET,
+      paths: reviewPhotos.map((photo) => photo.storage_path),
+    });
+
+    const { error: photoDeleteError } = await supabase
+      .from("review_photos")
+      .delete()
+      .eq("review_id", review.id);
+
+    if (photoDeleteError) {
+      throw new Error(`Unable to remove review photo records: ${photoDeleteError.message}`);
+    }
+  }
 
   const { error } = await supabase
     .from("guest_reviews")
