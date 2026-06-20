@@ -1,9 +1,12 @@
 import { BookingForm } from "./booking-form";
+import { getActiveDateBlocks } from "@/lib/date-blocks";
 
-export default function BookingPage() {
+export default async function BookingPage() {
+  const blockedDateRanges = await getActiveDateBlocks();
+
   return (
     <div className="site-shell section-pad">
-      <BookingForm />
+      <BookingForm blockedDateRanges={blockedDateRanges} />
     </div>
   );
 }
