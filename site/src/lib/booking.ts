@@ -187,8 +187,6 @@ export async function sendBookingDeclinedEmailToGuest(request: BookingDeclineEma
     "Unfortunately we are unable to confirm those dates at this time.",
     `Requested arrival: ${request.arrivalDate}`,
     `Requested departure: ${request.departureDate}`,
-    "",
-    "Please reply if you would like help choosing alternate dates.",
   ].join("\n");
 
   const html = `
@@ -199,7 +197,6 @@ export async function sendBookingDeclinedEmailToGuest(request: BookingDeclineEma
       <p>Unfortunately we are unable to confirm those dates at this time.</p>
       <p><strong>Requested arrival:</strong> ${escapeHtml(request.arrivalDate)}</p>
       <p><strong>Requested departure:</strong> ${escapeHtml(request.departureDate)}</p>
-      <p>Please reply if you would like help choosing alternate dates.</p>
     </div>
   `;
 

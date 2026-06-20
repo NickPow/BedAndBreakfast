@@ -94,6 +94,10 @@ const galleryReorderSchema = z.object({
   orderedIds: z.array(z.string().uuid()).min(1, "At least one image is required for reorder."),
 });
 
+const deleteDateBlockSchema = z.object({
+  blockId: z.string().uuid("Invalid block ID."),
+});
+
 const LEGACY_IMPORT_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif"]);
 
 function mimeTypeFromExtension(extension: string) {
@@ -752,6 +756,38 @@ export async function removeManualDateBlock(formData: FormData) {
 
   revalidatePath("/admin");
   redirect("/admin?notice=manual-block-removed");
+}
+
+export async function deleteDateBlock(formData: FormData) {
+  const adminUserId = await requireAdminUserId();
+  const parsed = deleteDateBlockSchema.safeParse({
+    blockId: formData.get("blockId"),
+  });
+
+  if (!parsed.success) {
+    redirect("/admin?error=invalid-block-delete");
+  }
+
+  const supabase = getSupabaseServiceClient();
+
+  const { error } = await supabase
+    .from("date_blocks")
+    .update({
+      is_active: false,
+      note: "Blocked date removed from admin dashboard",
+      delete_reason: "Removed by admin",
+      updated_by: adminUserId,
+    } as never)
+    .eq("id", parsed.data.blockId)
+    .eq("is_active", true);
+
+  if (error) {
+    throw new Error(`Unable to delete blocked date: ${error.message}`);
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/booking");
+  redirect("/admin?notice=block-deleted");
 }
 
 export async function approveGuestReview(formData: FormData) {

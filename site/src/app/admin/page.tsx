@@ -4,6 +4,7 @@ import {
   approveGuestReview,
   approveBookingRequest,
   createManualDateBlock,
+  deleteDateBlock,
   deleteGalleryImage,
   declineBookingRequest,
   reorderGalleryImages,
@@ -90,6 +91,8 @@ function friendlyNotice(notice?: string) {
       return "Gallery image deleted.";
     case "gallery-order-saved":
       return "Gallery order saved.";
+    case "block-deleted":
+      return "Blocked date removed.";
     case "legacy-gallery-imported":
       return "Existing site images were imported into gallery management.";
     case "legacy-gallery-already-imported":
@@ -133,6 +136,8 @@ function friendlyError(error?: string, reason?: string) {
       return reason || "Unable to save gallery order.";
     case "legacy-gallery-import-failed":
       return reason || "Unable to import local gallery images.";
+    case "invalid-block-delete":
+      return "Unable to remove that blocked date.";
     default:
       return "";
   }
@@ -284,13 +289,6 @@ export default async function AdminDashboardPage({
           </p>
         )}
       </section>
-
-      <GalleryManager
-        images={galleryImages}
-        uploadAction={uploadGalleryImage}
-        deleteAction={deleteGalleryImage}
-        reorderAction={reorderGalleryImages}
-      />
 
       <section className="content-card rounded-[1.6rem] p-6 md:p-8">
         <h2 className="font-serif text-3xl text-stone-900">Pending requests</h2>
@@ -466,12 +464,28 @@ export default async function AdminDashboardPage({
                       </button>
                     </form>
                   )}
+
+                  {block.source_type !== "manual_block" && (
+                    <form action={deleteDateBlock}>
+                      <input type="hidden" name="blockId" value={block.id} />
+                      <button type="submit" className="button-secondary">
+                        Delete blocked date
+                      </button>
+                    </form>
+                  )}
                 </div>
               </article>
             ))}
           </div>
         )}
       </section>
+
+      <GalleryManager
+        images={galleryImages}
+        uploadAction={uploadGalleryImage}
+        deleteAction={deleteGalleryImage}
+        reorderAction={reorderGalleryImages}
+      />
     </div>
   );
 }
