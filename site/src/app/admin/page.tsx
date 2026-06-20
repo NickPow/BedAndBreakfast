@@ -6,7 +6,6 @@ import {
   createManualDateBlock,
   deleteGalleryImage,
   declineBookingRequest,
-  importLegacyGalleryImages,
   reorderGalleryImages,
   rejectGuestReview,
   removeManualDateBlock,
@@ -291,7 +290,6 @@ export default async function AdminDashboardPage({
         uploadAction={uploadGalleryImage}
         deleteAction={deleteGalleryImage}
         reorderAction={reorderGalleryImages}
-        importLegacyAction={importLegacyGalleryImages}
       />
 
       <section className="content-card rounded-[1.6rem] p-6 md:p-8">

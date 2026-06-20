@@ -15,7 +15,6 @@ type GalleryManagerProps = {
   uploadAction: (formData: FormData) => void;
   deleteAction: (formData: FormData) => void;
   reorderAction: (formData: FormData) => void;
-  importLegacyAction: () => void;
 };
 
 function reorderIds(ids: string[], draggedId: string, targetId: string) {
@@ -39,7 +38,7 @@ function reorderIds(ids: string[], draggedId: string, targetId: string) {
    return next;
 }
 
-export function GalleryManager({ images, uploadAction, deleteAction, reorderAction, importLegacyAction }: GalleryManagerProps) {
+export function GalleryManager({ images, uploadAction, deleteAction, reorderAction }: GalleryManagerProps) {
   const [orderedIds, setOrderedIds] = useState(images.map((image) => image.id));
   const [draggedId, setDraggedId] = useState<string | null>(null);
 
@@ -57,12 +56,6 @@ export function GalleryManager({ images, uploadAction, deleteAction, reorderActi
       <p className="section-copy mt-2">
         Upload, reorder, and remove images from the public gallery. Changes appear on the pictures page after save.
       </p>
-
-      <form action={importLegacyAction} className="mt-4">
-        <button type="submit" className="button-secondary">
-          Import existing site images
-        </button>
-      </form>
 
       <form action={uploadAction} className="mt-5 grid gap-3 rounded-2xl border border-stone-200 bg-white/70 p-4 md:grid-cols-3">
         <label className="grid gap-2 md:col-span-3">
@@ -98,7 +91,7 @@ export function GalleryManager({ images, uploadAction, deleteAction, reorderActi
             </button>
           </form>
 
-          <ul className="mt-4 grid gap-3">
+          <ul className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {orderedImages.map((image) => (
               <li
                 key={image.id}
@@ -116,19 +109,19 @@ export function GalleryManager({ images, uploadAction, deleteAction, reorderActi
                   setDraggedId(null);
                 }}
                 onDragEnd={() => setDraggedId(null)}
-                className="grid gap-3 rounded-2xl border border-stone-200 bg-white/80 p-3 md:grid-cols-[7rem_minmax(0,1fr)_auto] md:items-center"
+                className="grid gap-3 rounded-2xl border border-stone-200 bg-white/80 p-3"
               >
-                <div className="relative h-24 w-full overflow-hidden rounded-xl border border-stone-200 md:w-28">
+                <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl border border-stone-200">
                   <Image src={image.src} alt={image.altText || "Gallery image"} fill className="object-cover" sizes="112px" />
                 </div>
 
                 <div>
                   <p className="text-xs font-bold uppercase tracking-[0.16em] text-stone-500">Drag handle</p>
-                  <p className="mt-1 text-sm font-semibold text-stone-800">Drag this card to reorder gallery images.</p>
+                  <p className="mt-1 text-sm font-semibold text-stone-800">Drag this card to place it in a new position.</p>
                   {image.caption ? <p className="mt-2 text-sm text-stone-700">{image.caption}</p> : null}
                 </div>
 
-                <form action={deleteAction}>
+                <form action={deleteAction} className="justify-self-start">
                   <input type="hidden" name="galleryImageId" value={image.id} />
                   <button type="submit" className="button-secondary" aria-label="Delete gallery image">
                     Delete
