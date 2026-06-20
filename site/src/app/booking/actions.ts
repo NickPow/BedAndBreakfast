@@ -166,20 +166,42 @@ export async function submitBookingRequest(
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unable to send the booking request.";
-    const isConfigIssue = /configure smtp_host|booking_from_email|smtp_pass|smtp_user|smtp_port/i.test(
+    const isEmailConfigIssue = /configure booking_to_email|configure smtp_host|booking_from_email|smtp_pass|smtp_user|smtp_port/i.test(
+      errorMessage,
+    );
+    const isSupabaseConfigIssue = /next_public_supabase_url|supabase_service_role_key|before using admin booking features|invalid api key/i.test(
+      errorMessage,
+    );
+    const isSupabaseSchemaIssue = /booking_requests|date_blocks|relation .* does not exist|could not find the table|permission denied for table/i.test(
       errorMessage,
     );
     const incidentId = crypto.randomUUID().slice(0, 8);
 
-    console.error(`[booking:${incidentId}] Email send failed`, {
+    console.error(`[booking:${incidentId}] Booking request failed`, {
       message: errorMessage,
       error,
     });
 
-    if (isConfigIssue) {
+    if (isEmailConfigIssue) {
       return {
         status: "error",
         message: "Bookings are temporarily unavailable. Please contact the host directly.",
+      };
+    }
+
+    if (isSupabaseConfigIssue) {
+      return {
+        status: "error",
+        message:
+          "Booking setup is incomplete on the server. Add NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in environment settings.",
+      };
+    }
+
+    if (isSupabaseSchemaIssue) {
+      return {
+        status: "error",
+        message:
+          "Booking database setup is incomplete. Run the SQL in site/supabase/booking.sql to create tables and grants, then try again.",
       };
     }
 
