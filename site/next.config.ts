@@ -1,5 +1,17 @@
 import type { NextConfig } from "next";
 
+const contentSecurityPolicy =
+  "default-src 'self'; " +
+  "base-uri 'self'; " +
+  "form-action 'self'; " +
+  "frame-ancestors 'none'; " +
+  "frame-src 'self' https://www.google.com https://maps.google.com; " +
+  "img-src 'self' data:; " +
+  "script-src 'self' 'unsafe-inline'; " +
+  "style-src 'self' 'unsafe-inline'; " +
+  "connect-src 'self'; " +
+  "font-src 'self' data:;";
+
 const nextConfig: NextConfig = {
   async headers() {
     return [
@@ -16,8 +28,7 @@ const nextConfig: NextConfig = {
           },
           {
             key: "Content-Security-Policy",
-            value:
-              "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; frame-src 'self' https://www.google.com https://maps.google.com; img-src 'self' data:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; font-src 'self' data:;",
+            value: contentSecurityPolicy,
           },
         ],
       },
